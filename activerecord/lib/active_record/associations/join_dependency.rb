@@ -55,19 +55,19 @@ module ActiveRecord
 
       def self.walk_tree(associations, hash)
         case associations
-        when Symbol, String
-          hash[associations.to_sym] ||= {}
-        when Array
-          associations.each do |assoc|
-            walk_tree assoc, hash
-          end
-        when Hash
-          associations.each do |k,v|
-            cache = hash[k] ||= {}
-            walk_tree v, cache
-          end
-        else
-          raise ConfigurationError, associations.inspect
+          when Symbol, String
+            hash[associations.to_sym] ||= {}
+          when Array
+            associations.each do |assoc|
+              walk_tree assoc, hash
+            end
+          when Hash
+            associations.each do |k, v|
+              cache = hash[k] ||= {}
+              walk_tree v, cache unless v.nil? || v.empty?
+            end
+          else
+            raise ConfigurationError, associations.inspect
         end
       end
 
@@ -95,8 +95,17 @@ module ActiveRecord
       def initialize(base, associations, joins)
         @alias_tracker = AliasTracker.create_with_joins(base.connection, base.table_name, joins, base.type_caster)
         tree = self.class.make_tree associations
+        trim_polymorphic_reflections_from_tree(tree, base)
         @join_root = JoinBase.new base, build(tree, base)
         @join_root.children.each { |child| construct_tables! @join_root, child }
+      end
+
+      def trim_polymorphic_reflections_from_tree(tree, base)
+        # TODO: This most likely needs to traverse the entire tree
+        tree.each_key do |k|
+          reflection = find_reflection base, k
+          tree.delete(k) if reflection.polymorphic?
+        end
       end
 
       def reflections
@@ -227,8 +236,8 @@ module ActiveRecord
             raise EagerLoadPolymorphicError.new(reflection)
           end
 
-          JoinAssociation.new reflection, build(right, reflection.klass)
-        end
+            JoinAssociation.new reflection, build(right, reflection.klass)
+          end
       end
 
       def construct(ar_parent, parent, row, rs, seen, model_cache, aliases)

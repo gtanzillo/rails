@@ -351,6 +351,7 @@ class AssociationsJoinModelTest < ActiveRecord::TestCase
       taggings(:welcome_general).things
     end
 
+    # This test now fails with my changes. But this is the error I'm trying to fix
     assert_raise ActiveRecord::EagerLoadPolymorphicError do
       tags(:general).taggings.includes(:taggable).where('bogus_table.column = 1').references(:bogus_table).to_a
     end
